@@ -59,8 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define BOOT_JAMPER_Pin GPIO_PIN_1
 #define BOOT_JAMPER_GPIO_Port GPIOB
-#define SPI2_RST_Pin GPIO_PIN_12
-#define SPI2_RST_GPIO_Port GPIOB
+#define SPI2_CS_Pin GPIO_PIN_12
+#define SPI2_CS_GPIO_Port GPIOB
 #define W5500_RESET_Pin GPIO_PIN_0
 #define W5500_RESET_GPIO_Port GPIOD
 
