@@ -70,8 +70,6 @@ uint16_t 	dest_port;
 
 static uint32_t flash_write_addr 		= APP_FLASH_START;
 static uint32_t total_received 			= 0;
-static uint8_t  expected_ctrl   		= 0;
-static bool     update_active   		= false;
 
 int32_t ret_boot						= 0;
 int32_t rx_boot							= 0;
@@ -95,13 +93,13 @@ typedef enum
 	STATE_WAIT_DATA_PACKET,
 	STATE_END_SESSION,
 	STATE_ERASE_FLASH
-} state_machine;
+} state_machine_t;
 
 uint8_t  		ack						= 0;
 uint16_t 		crc;
 packet_result_t res;
 
-state_machine 	state;
+state_machine_t state;
 
 /* USER CODE END PV */
 
@@ -110,10 +108,10 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI2_Init(void);
 /* USER CODE BEGIN PFP */
-typedef void 	(*pFunction)				(void);
-void 			jump_to_application			(void);
+typedef void 	(*pFunction)				(void);										/* Указатель на функцию */
+void 			jump_to_application			(void);										/* Функция перехода на оснновную программу */
 
-void 			cris_enter					(void);
+void 			cris_enter					(void);										/* "Обёртки" пользовательских функций SPI для W5500 */
 void 			cris_exit					(void);
 void 			cs_select					(void);
 void 			cs_deselect					(void);
@@ -122,13 +120,13 @@ void 			spi_writebyte				(uint8_t wb);
 void 			spi_readburst				(uint8_t* pBuf, uint16_t len);
 void 			spi_writeburst				(uint8_t* pBuf, uint16_t len);
 
-bool 			flash_erase					(void);
-bool 			flash_write_block			(uint8_t *data, uint32_t len);
-uint16_t 		crc16						(const uint8_t *data, uint32_t len);
-bool 			verify_flash_crc			(uint16_t expected_crc);
+bool 			flash_erase					(void);										/* Функция стирания flash памяти */
+bool 			flash_write_block			(uint8_t *data, uint32_t len);				/* Стирание блока памяти */
+uint16_t 		crc16						(const uint8_t *data, uint32_t len);		/* Вычисление контрольной суммы */
+bool 			verify_flash_crc			(uint16_t expected_crc);					/* Валидация контрольной суммы */
 
 
-packet_result_t bootloader_process_packet	(uint8_t *buf, uint32_t len, uint8_t *ack_ctrl, uint16_t *final_crc);
+packet_result_t bootloader_process_packet	(uint8_t *buf, uint32_t len, uint8_t *ack_ctrl, uint16_t *final_crc);	/* Функция записи пакета с прошивкой во flash память */
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -275,6 +273,9 @@ int main(void)
 	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
 	  		  HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0);
 	  		  jump_to_application();													/* Переход в основную программу */
+	  		  break;
+
+	  	  case STATE_ERASE_FLASH:														/* Состояние стирания flash без записи прошивки */
 	  		  break;
 	  }
     /* USER CODE BEGIN 3 */
@@ -468,21 +469,21 @@ bool flash_erase(void) {
     FLASH_EraseInitTypeDef erase = {0};
     uint32_t sector_error;
 
-    HAL_FLASH_Unlock();
+    HAL_FLASH_Unlock();											/* Разблокировка памяти */
 
     erase.TypeErase = FLASH_TYPEERASE_SECTORS;
     erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 
-    erase.Sector = FLASH_SECTOR_2;					/* Первый сектор основного приложения */
+    erase.Sector = FLASH_SECTOR_2;								/* Первый сектор основного приложения */
     erase.NbSectors = 6;
 
-    if (HAL_FLASHEx_Erase(&erase, &sector_error) != HAL_OK) {
-        HAL_FLASH_Lock();
-        return false;
+    if (HAL_FLASHEx_Erase(&erase, &sector_error) != HAL_OK) {	/* Если стирание flash не прошло успешно */
+        HAL_FLASH_Lock();										/* "Закрываем" память */
+        return false;											/* Выводим сообщение об ошибке */
     }
 
-    HAL_FLASH_Lock();
-    return true;
+    HAL_FLASH_Lock();											/* Запрещаем взаимодействие с памятью */
+    return true;												/* Сообщаем о успешном окончании операции */
 }
 
 bool flash_write_block(uint8_t *data, uint32_t len) {
@@ -566,8 +567,7 @@ uint16_t crc16(const uint8_t *data, uint32_t len) {
     {
         crc ^= (*data++) << 8;
 
-        for (bit = 0; bit < 8; bit++)
-        {
+        for (bit = 0; bit < 8; bit++) {
             if (crc & 0x8000)
                 crc = (crc << 1) ^ 0x1021;
             else
