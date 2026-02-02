@@ -29,25 +29,25 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  12 .ARM.attributes 00000030  00000000  00000000  00006068  2**0
                   CONTENTS, READONLY
- 13 .debug_info   00008e1b  00000000  00000000  00006098  2**0
+ 13 .debug_info   00008e51  00000000  00000000  00006098  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 14 .debug_abbrev 00001f17  00000000  00000000  0000eeb3  2**0
+ 14 .debug_abbrev 00001f17  00000000  00000000  0000eee9  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 15 .debug_aranges 00000a08  00000000  00000000  00010dd0  2**3
+ 15 .debug_aranges 00000a08  00000000  00000000  00010e00  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_rnglists 00000795  00000000  00000000  000117d8  2**0
+ 16 .debug_rnglists 00000795  00000000  00000000  00011808  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_macro  00020a94  00000000  00000000  00011f6d  2**0
+ 17 .debug_macro  00020a94  00000000  00000000  00011f9d  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_line   0000aa69  00000000  00000000  00032a01  2**0
+ 18 .debug_line   0000aa66  00000000  00000000  00032a31  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .debug_str    000c6171  00000000  00000000  0003d46a  2**0
+ 19 .debug_str    000c61e3  00000000  00000000  0003d497  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 20 .comment      00000043  00000000  00000000  001035db  2**0
+ 20 .comment      00000043  00000000  00000000  0010367a  2**0
                   CONTENTS, READONLY
- 21 .debug_frame  00002804  00000000  00000000  00103620  2**2
+ 21 .debug_frame  00002804  00000000  00000000  001036c0  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 22 .debug_line_str 00000069  00000000  00000000  00105e24  2**0
+ 22 .debug_line_str 00000069  00000000  00000000  00105ec4  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -1313,7 +1313,7 @@ int main(void)
  8000abe:	2000      	movs	r0, #0
  8000ac0:	f000 fc68 	bl	8001394 <socket>
 
-  state = WAIT_SYNC_BYTE;
+  state = STATE_WAIT_SYNC_BYTE;												/* Переходим в стартовое состояние машины состояний */
  8000ac4:	4b98      	ldr	r3, [pc, #608]	@ (8000d28 <main+0x2f4>)
  8000ac6:	2200      	movs	r2, #0
  8000ac8:	701a      	strb	r2, [r3, #0]
@@ -1330,25 +1330,24 @@ int main(void)
  8000ad2:	a201      	add	r2, pc, #4	@ (adr r2, 8000ad8 <main+0xa4>)
  8000ad4:	f852 f023 	ldr.w	pc, [r2, r3, lsl #2]
  8000ad8:	08000ae9 	.word	0x08000ae9
- 8000adc:	08000bad 	.word	0x08000bad
- 8000ae0:	08000cc9 	.word	0x08000cc9
- 8000ae4:	08000b4d 	.word	0x08000b4d
+ 8000adc:	08000b4d 	.word	0x08000b4d
+ 8000ae0:	08000bad 	.word	0x08000bad
+ 8000ae4:	08000cc7 	.word	0x08000cc7
 	  {
-	  	  case WAIT_SYNC_BYTE:
-	  		  ret_boot = getSn_RX_RSR(0);
+	  	  case STATE_WAIT_SYNC_BYTE:										/* Ожидаем байт синхронизации */
+	  		  ret_boot = getSn_RX_RSR(0);									/* Проверяем сокет на наличие данных */
  8000ae8:	2000      	movs	r0, #0
  8000aea:	f7ff fea6 	bl	800083a <getSn_RX_RSR>
  8000aee:	4603      	mov	r3, r0
  8000af0:	461a      	mov	r2, r3
  8000af2:	4b8e      	ldr	r3, [pc, #568]	@ (8000d2c <main+0x2f8>)
  8000af4:	601a      	str	r2, [r3, #0]
-	  		  if(ret_boot > 0)
+	  		  if(ret_boot > 0)	{											/* Если данные имеются */
  8000af6:	4b8d      	ldr	r3, [pc, #564]	@ (8000d2c <main+0x2f8>)
  8000af8:	681b      	ldr	r3, [r3, #0]
  8000afa:	2b00      	cmp	r3, #0
- 8000afc:	f340 80f7 	ble.w	8000cee <main+0x2ba>
-	  		  {
-	  			  rx_boot = recvfrom(0, rx_data, 1, dest_ip, &dest_port);
+ 8000afc:	f340 80f6 	ble.w	8000cec <main+0x2b8>
+	  			  rx_boot = recvfrom(0, rx_data, 1, dest_ip, &dest_port);	/* Начинаем их принимать */
  8000b00:	4b8b      	ldr	r3, [pc, #556]	@ (8000d30 <main+0x2fc>)
  8000b02:	9300      	str	r3, [sp, #0]
  8000b04:	4b8b      	ldr	r3, [pc, #556]	@ (8000d34 <main+0x300>)
@@ -1359,37 +1358,33 @@ int main(void)
  8000b10:	4603      	mov	r3, r0
  8000b12:	4a8a      	ldr	r2, [pc, #552]	@ (8000d3c <main+0x308>)
  8000b14:	6013      	str	r3, [r2, #0]
-	  			  if(rx_boot > 0)
+	  			  if(rx_boot > 0)	{										/* Если количество байт больше 0 (т.е. в сокете что-то есть) */
  8000b16:	4b89      	ldr	r3, [pc, #548]	@ (8000d3c <main+0x308>)
  8000b18:	681b      	ldr	r3, [r3, #0]
  8000b1a:	2b00      	cmp	r3, #0
- 8000b1c:	f340 80e7 	ble.w	8000cee <main+0x2ba>
-	  			  {
-	  				  first_byte = rx_data[0];
+ 8000b1c:	f340 80e6 	ble.w	8000cec <main+0x2b8>
+	  				  first_byte = rx_data[0];								/* Смотрим принятый от внешнего ПО байт */
  8000b20:	4b85      	ldr	r3, [pc, #532]	@ (8000d38 <main+0x304>)
  8000b22:	781a      	ldrb	r2, [r3, #0]
  8000b24:	4b86      	ldr	r3, [pc, #536]	@ (8000d40 <main+0x30c>)
  8000b26:	701a      	strb	r2, [r3, #0]
-	  				  if(first_byte == 0xAA)
+	  				  if(first_byte == 0xAA)	{							/* Если первый принятый байт равен 0xAA */
  8000b28:	4b85      	ldr	r3, [pc, #532]	@ (8000d40 <main+0x30c>)
  8000b2a:	781b      	ldrb	r3, [r3, #0]
  8000b2c:	2baa      	cmp	r3, #170	@ 0xaa
  8000b2e:	d103      	bne.n	8000b38 <main+0x104>
-	  				  {
-	  					  state = ERASE_FLASH;
+	  					  state = STATE_PREPARE_FLASH;						/* В случае успеха переходим к подготовке flash памяти */
  8000b30:	4b7d      	ldr	r3, [pc, #500]	@ (8000d28 <main+0x2f4>)
- 8000b32:	2203      	movs	r2, #3
+ 8000b32:	2201      	movs	r2, #1
  8000b34:	701a      	strb	r2, [r3, #0]
  8000b36:	e002      	b.n	8000b3e <main+0x10a>
-	  				  }
-	  				  else
-	  				  {
-	  					  state = WAIT_SYNC_BYTE;
+	  				  }	else {
+	  					  state = STATE_WAIT_SYNC_BYTE;						/* В случае неудачи продролжаем ожидать правильный байт */
  8000b38:	4b7b      	ldr	r3, [pc, #492]	@ (8000d28 <main+0x2f4>)
  8000b3a:	2200      	movs	r2, #0
  8000b3c:	701a      	strb	r2, [r3, #0]
 	  				  }
-	  				  memset(rx_data, 0, sizeof(rx_data));
+	  				  memset(rx_data, 0, sizeof(rx_data));					/* Очищаем буфер после обработки принятых данных */
  8000b3e:	f44f 6285 	mov.w	r2, #1064	@ 0x428
  8000b42:	2100      	movs	r1, #0
  8000b44:	487c      	ldr	r0, [pc, #496]	@ (8000d38 <main+0x304>)
@@ -1397,22 +1392,21 @@ int main(void)
 	  			  }
 	  		  }
 	  		  break;
- 8000b4a:	e0d0      	b.n	8000cee <main+0x2ba>
+ 8000b4a:	e0cf      	b.n	8000cec <main+0x2b8>
 
-	  	  case ERASE_FLASH:
-	  		  erase_result = flash_erase();
+	  	  case STATE_PREPARE_FLASH:											/* Подготавливаем flash память к записи прошивки, т.к. это происходит "на лету" */
+	  		  erase_result = flash_erase();									/* Стираем flash память */
  8000b4c:	f000 fac2 	bl	80010d4 <flash_erase>
  8000b50:	4603      	mov	r3, r0
  8000b52:	461a      	mov	r2, r3
  8000b54:	4b7b      	ldr	r3, [pc, #492]	@ (8000d44 <main+0x310>)
  8000b56:	701a      	strb	r2, [r3, #0]
-	  		  if(erase_result == true)
+	  		  if(erase_result == true)	{									/* Если стирание flash пасять прошло успешно */
  8000b58:	4b7a      	ldr	r3, [pc, #488]	@ (8000d44 <main+0x310>)
  8000b5a:	781b      	ldrb	r3, [r3, #0]
  8000b5c:	2b00      	cmp	r3, #0
  8000b5e:	d00f      	beq.n	8000b80 <main+0x14c>
-	  		  {
-	  			  tx_data[0] = 0xBB;
+	  			  tx_data[0] = 0xBB;										/* Отслыаем во внешнее ПО байт 0xBB - готовность к принятию прошивки */
  8000b60:	4b79      	ldr	r3, [pc, #484]	@ (8000d48 <main+0x314>)
  8000b62:	22bb      	movs	r2, #187	@ 0xbb
  8000b64:	701a      	strb	r2, [r3, #0]
@@ -1425,15 +1419,13 @@ int main(void)
  8000b70:	4975      	ldr	r1, [pc, #468]	@ (8000d48 <main+0x314>)
  8000b72:	2000      	movs	r0, #0
  8000b74:	f000 fda4 	bl	80016c0 <sendto_W5x00>
-	  			  state = PARS_PACKET;
+	  			  state = STATE_WAIT_DATA_PACKET;							/* Начинаем ожидать посылку с прошивкой */
  8000b78:	4b6b      	ldr	r3, [pc, #428]	@ (8000d28 <main+0x2f4>)
- 8000b7a:	2201      	movs	r2, #1
+ 8000b7a:	2202      	movs	r2, #2
  8000b7c:	701a      	strb	r2, [r3, #0]
  8000b7e:	e00e      	b.n	8000b9e <main+0x16a>
-	  		  }
-	  		  else
-	  		  {
-	  			  tx_data[0] = 0xCC;
+	  		  } else {
+	  			  tx_data[0] = 0xCC;										/* В случае ошибки отсылаем байт ошибки - 0xCC */
  8000b80:	4b71      	ldr	r3, [pc, #452]	@ (8000d48 <main+0x314>)
  8000b82:	22cc      	movs	r2, #204	@ 0xcc
  8000b84:	701a      	strb	r2, [r3, #0]
@@ -1446,34 +1438,33 @@ int main(void)
  8000b90:	496d      	ldr	r1, [pc, #436]	@ (8000d48 <main+0x314>)
  8000b92:	2000      	movs	r0, #0
  8000b94:	f000 fd94 	bl	80016c0 <sendto_W5x00>
-	  			  state = WAIT_SYNC_BYTE;
+	  			  state = STATE_WAIT_SYNC_BYTE;								/* Переходим в режим ожидания синхробайта */
  8000b98:	4b63      	ldr	r3, [pc, #396]	@ (8000d28 <main+0x2f4>)
  8000b9a:	2200      	movs	r2, #0
  8000b9c:	701a      	strb	r2, [r3, #0]
 	  		  }
-	  		  memset(rx_data, 0, sizeof(rx_data));
+	  		  memset(rx_data, 0, sizeof(rx_data));							/* Очищаем буфер после обработки принятых данных */
  8000b9e:	f44f 6285 	mov.w	r2, #1064	@ 0x428
  8000ba2:	2100      	movs	r1, #0
  8000ba4:	4864      	ldr	r0, [pc, #400]	@ (8000d38 <main+0x304>)
  8000ba6:	f004 f8a9 	bl	8004cfc <memset>
 	  		  break;
- 8000baa:	e0a4      	b.n	8000cf6 <main+0x2c2>
+ 8000baa:	e0a3      	b.n	8000cf4 <main+0x2c0>
 
-	  	  case PARS_PACKET:
-	  		ret_boot = getSn_RX_RSR(0);
+	  	  case STATE_WAIT_DATA_PACKET:													/* Ожидаем пакеты с прошивкой */
+	  		ret_boot = getSn_RX_RSR(0);													/* Проверяем сокет на наличие данных */
  8000bac:	2000      	movs	r0, #0
  8000bae:	f7ff fe44 	bl	800083a <getSn_RX_RSR>
  8000bb2:	4603      	mov	r3, r0
  8000bb4:	461a      	mov	r2, r3
  8000bb6:	4b5d      	ldr	r3, [pc, #372]	@ (8000d2c <main+0x2f8>)
  8000bb8:	601a      	str	r2, [r3, #0]
-	  		if(ret_boot > 0)
+	  		if(ret_boot > 0) {															/* Если данные имеются */
  8000bba:	4b5c      	ldr	r3, [pc, #368]	@ (8000d2c <main+0x2f8>)
  8000bbc:	681b      	ldr	r3, [r3, #0]
  8000bbe:	2b00      	cmp	r3, #0
- 8000bc0:	f340 8097 	ble.w	8000cf2 <main+0x2be>
-	  		{
-	  			rx_boot = recvfrom(0, rx_data, sizeof(rx_data), dest_ip, &dest_port);
+ 8000bc0:	f340 8096 	ble.w	8000cf0 <main+0x2bc>
+	  			rx_boot = recvfrom(0, rx_data, sizeof(rx_data), dest_ip, &dest_port);	/* Начинаем их принимать */
  8000bc4:	4b5a      	ldr	r3, [pc, #360]	@ (8000d30 <main+0x2fc>)
  8000bc6:	9300      	str	r3, [sp, #0]
  8000bc8:	4b5a      	ldr	r3, [pc, #360]	@ (8000d34 <main+0x300>)
@@ -1484,13 +1475,12 @@ int main(void)
  8000bd6:	4603      	mov	r3, r0
  8000bd8:	4a58      	ldr	r2, [pc, #352]	@ (8000d3c <main+0x308>)
  8000bda:	6013      	str	r3, [r2, #0]
-	  			if(rx_boot > 0)
+	  			if(rx_boot > 0) {														/* Если количество байт больше 0 (т.е. в сокете что-то есть) */
  8000bdc:	4b57      	ldr	r3, [pc, #348]	@ (8000d3c <main+0x308>)
  8000bde:	681b      	ldr	r3, [r3, #0]
  8000be0:	2b00      	cmp	r3, #0
- 8000be2:	f340 8086 	ble.w	8000cf2 <main+0x2be>
-	  			{
-	  				res = bootloader_process_packet(rx_data, rx_boot, &ack, &crc);
+ 8000be2:	f340 8085 	ble.w	8000cf0 <main+0x2bc>
+	  				res = bootloader_process_packet(rx_data, rx_boot, &ack, &crc);		/* Сразу передаём полученные данные в функцию записи flash */
  8000be6:	4b55      	ldr	r3, [pc, #340]	@ (8000d3c <main+0x308>)
  8000be8:	681b      	ldr	r3, [r3, #0]
  8000bea:	4619      	mov	r1, r3
@@ -1503,21 +1493,21 @@ int main(void)
  8000bfa:	4b56      	ldr	r3, [pc, #344]	@ (8000d54 <main+0x320>)
  8000bfc:	701a      	strb	r2, [r3, #0]
 
-	  				switch(res)
+	  				switch(res)															/* Машина состояний, отслеживающая процесс записи во flash */
  8000bfe:	4b55      	ldr	r3, [pc, #340]	@ (8000d54 <main+0x320>)
  8000c00:	781b      	ldrb	r3, [r3, #0]
  8000c02:	2b03      	cmp	r3, #3
- 8000c04:	d021      	beq.n	8000c4a <main+0x216>
+ 8000c04:	d020      	beq.n	8000c48 <main+0x214>
  8000c06:	2b03      	cmp	r3, #3
- 8000c08:	dc47      	bgt.n	8000c9a <main+0x266>
+ 8000c08:	dc46      	bgt.n	8000c98 <main+0x264>
  8000c0a:	2b00      	cmp	r3, #0
  8000c0c:	d002      	beq.n	8000c14 <main+0x1e0>
  8000c0e:	2b02      	cmp	r3, #2
- 8000c10:	d00b      	beq.n	8000c2a <main+0x1f6>
- 8000c12:	e042      	b.n	8000c9a <main+0x266>
+ 8000c10:	d00a      	beq.n	8000c28 <main+0x1f4>
+ 8000c12:	e041      	b.n	8000c98 <main+0x264>
 	  				{
-	  					case PKT_OK:
-	  						sendto(0, &ack, 1, &dest_ip, dest_port);
+	  					case PKT_OK:													/* Если пакет был записан без ошибок */
+	  						sendto(0, &ack, 1, &dest_ip, dest_port);					/* Отправляем в ПО код готовности принятия следующего пакета */
  8000c14:	4b46      	ldr	r3, [pc, #280]	@ (8000d30 <main+0x2fc>)
  8000c16:	881b      	ldrh	r3, [r3, #0]
  8000c18:	9300      	str	r3, [sp, #0]
@@ -1526,146 +1516,143 @@ int main(void)
  8000c1e:	494c      	ldr	r1, [pc, #304]	@ (8000d50 <main+0x31c>)
  8000c20:	2000      	movs	r0, #0
  8000c22:	f000 fd4d 	bl	80016c0 <sendto_W5x00>
-	  						asm("nop");
- 8000c26:	bf00      	nop
 	  						break;
- 8000c28:	e047      	b.n	8000cba <main+0x286>
+ 8000c26:	e047      	b.n	8000cb8 <main+0x284>
 
-	  					case PKT_FLASH_ERROR:
-	  						tx_data[0] = 0xCC;
- 8000c2a:	4b47      	ldr	r3, [pc, #284]	@ (8000d48 <main+0x314>)
- 8000c2c:	22cc      	movs	r2, #204	@ 0xcc
- 8000c2e:	701a      	strb	r2, [r3, #0]
+	  					case PKT_FLASH_ERROR:											/* Если произошла ошибка записи */
+	  						tx_data[0] = 0xCC;											/* Сообщим об этом внешнему ПО */
+ 8000c28:	4b47      	ldr	r3, [pc, #284]	@ (8000d48 <main+0x314>)
+ 8000c2a:	22cc      	movs	r2, #204	@ 0xcc
+ 8000c2c:	701a      	strb	r2, [r3, #0]
 	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
- 8000c30:	4b3f      	ldr	r3, [pc, #252]	@ (8000d30 <main+0x2fc>)
- 8000c32:	881b      	ldrh	r3, [r3, #0]
- 8000c34:	9300      	str	r3, [sp, #0]
- 8000c36:	4b3f      	ldr	r3, [pc, #252]	@ (8000d34 <main+0x300>)
- 8000c38:	2201      	movs	r2, #1
- 8000c3a:	4943      	ldr	r1, [pc, #268]	@ (8000d48 <main+0x314>)
- 8000c3c:	2000      	movs	r0, #0
- 8000c3e:	f000 fd3f 	bl	80016c0 <sendto_W5x00>
-	  						state = WAIT_SYNC_BYTE;
- 8000c42:	4b39      	ldr	r3, [pc, #228]	@ (8000d28 <main+0x2f4>)
- 8000c44:	2200      	movs	r2, #0
- 8000c46:	701a      	strb	r2, [r3, #0]
+ 8000c2e:	4b40      	ldr	r3, [pc, #256]	@ (8000d30 <main+0x2fc>)
+ 8000c30:	881b      	ldrh	r3, [r3, #0]
+ 8000c32:	9300      	str	r3, [sp, #0]
+ 8000c34:	4b3f      	ldr	r3, [pc, #252]	@ (8000d34 <main+0x300>)
+ 8000c36:	2201      	movs	r2, #1
+ 8000c38:	4943      	ldr	r1, [pc, #268]	@ (8000d48 <main+0x314>)
+ 8000c3a:	2000      	movs	r0, #0
+ 8000c3c:	f000 fd40 	bl	80016c0 <sendto_W5x00>
+	  						state = STATE_WAIT_SYNC_BYTE;								/* Переходим к ожиданию синхробайта (начало приёма и записи прошивки сначала */
+ 8000c40:	4b39      	ldr	r3, [pc, #228]	@ (8000d28 <main+0x2f4>)
+ 8000c42:	2200      	movs	r2, #0
+ 8000c44:	701a      	strb	r2, [r3, #0]
 	  						break;
- 8000c48:	e037      	b.n	8000cba <main+0x286>
+ 8000c46:	e037      	b.n	8000cb8 <main+0x284>
 
-	  					case PKT_END_CRC:
-	  						if(verify_flash_crc(crc))
- 8000c4a:	4b40      	ldr	r3, [pc, #256]	@ (8000d4c <main+0x318>)
- 8000c4c:	881b      	ldrh	r3, [r3, #0]
- 8000c4e:	4618      	mov	r0, r3
- 8000c50:	f000 fb6a 	bl	8001328 <verify_flash_crc>
- 8000c54:	4603      	mov	r3, r0
- 8000c56:	2b00      	cmp	r3, #0
- 8000c58:	d00f      	beq.n	8000c7a <main+0x246>
-	  						{
-	  							tx_data[0] = 0xE2;
- 8000c5a:	4b3b      	ldr	r3, [pc, #236]	@ (8000d48 <main+0x314>)
- 8000c5c:	22e2      	movs	r2, #226	@ 0xe2
- 8000c5e:	701a      	strb	r2, [r3, #0]
+	  					case PKT_END_CRC:												/* Если был принят последний пакет с контрольной суммой */
+	  						if(verify_flash_crc(crc)) {									/* Рассчёт контрольной суммы */
+ 8000c48:	4b40      	ldr	r3, [pc, #256]	@ (8000d4c <main+0x318>)
+ 8000c4a:	881b      	ldrh	r3, [r3, #0]
+ 8000c4c:	4618      	mov	r0, r3
+ 8000c4e:	f000 fb6b 	bl	8001328 <verify_flash_crc>
+ 8000c52:	4603      	mov	r3, r0
+ 8000c54:	2b00      	cmp	r3, #0
+ 8000c56:	d00f      	beq.n	8000c78 <main+0x244>
+	  							tx_data[0] = 0xE2;										/* Если она правильная, сообщим об этом внешнему ПО и завершим приём данных */
+ 8000c58:	4b3b      	ldr	r3, [pc, #236]	@ (8000d48 <main+0x314>)
+ 8000c5a:	22e2      	movs	r2, #226	@ 0xe2
+ 8000c5c:	701a      	strb	r2, [r3, #0]
 	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
- 8000c60:	4b33      	ldr	r3, [pc, #204]	@ (8000d30 <main+0x2fc>)
- 8000c62:	881b      	ldrh	r3, [r3, #0]
- 8000c64:	9300      	str	r3, [sp, #0]
- 8000c66:	4b33      	ldr	r3, [pc, #204]	@ (8000d34 <main+0x300>)
- 8000c68:	2201      	movs	r2, #1
- 8000c6a:	4937      	ldr	r1, [pc, #220]	@ (8000d48 <main+0x314>)
- 8000c6c:	2000      	movs	r0, #0
- 8000c6e:	f000 fd27 	bl	80016c0 <sendto_W5x00>
-	  							state = END_SESSION;
- 8000c72:	4b2d      	ldr	r3, [pc, #180]	@ (8000d28 <main+0x2f4>)
- 8000c74:	2202      	movs	r2, #2
- 8000c76:	701a      	strb	r2, [r3, #0]
-	  						{
-	  							tx_data[0] = 0xE1;
+ 8000c5e:	4b34      	ldr	r3, [pc, #208]	@ (8000d30 <main+0x2fc>)
+ 8000c60:	881b      	ldrh	r3, [r3, #0]
+ 8000c62:	9300      	str	r3, [sp, #0]
+ 8000c64:	4b33      	ldr	r3, [pc, #204]	@ (8000d34 <main+0x300>)
+ 8000c66:	2201      	movs	r2, #1
+ 8000c68:	4937      	ldr	r1, [pc, #220]	@ (8000d48 <main+0x314>)
+ 8000c6a:	2000      	movs	r0, #0
+ 8000c6c:	f000 fd28 	bl	80016c0 <sendto_W5x00>
+	  							state = STATE_END_SESSION;
+ 8000c70:	4b2d      	ldr	r3, [pc, #180]	@ (8000d28 <main+0x2f4>)
+ 8000c72:	2203      	movs	r2, #3
+ 8000c74:	701a      	strb	r2, [r3, #0]
+	  						} else {													/* Если контрольная сумма неправильная */
+	  							tx_data[0] = 0xE1;										/* Сообщим об этом внешнему ПО */
 	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  							state = WAIT_SYNC_BYTE;
+	  							state = STATE_WAIT_SYNC_BYTE;							/* Переход в начало процедуры (ожидание синхробайта) */
 	  						}
 	  						break;
- 8000c78:	e01f      	b.n	8000cba <main+0x286>
-	  							tx_data[0] = 0xE1;
- 8000c7a:	4b33      	ldr	r3, [pc, #204]	@ (8000d48 <main+0x314>)
- 8000c7c:	22e1      	movs	r2, #225	@ 0xe1
- 8000c7e:	701a      	strb	r2, [r3, #0]
+ 8000c76:	e01f      	b.n	8000cb8 <main+0x284>
+	  							tx_data[0] = 0xE1;										/* Сообщим об этом внешнему ПО */
+ 8000c78:	4b33      	ldr	r3, [pc, #204]	@ (8000d48 <main+0x314>)
+ 8000c7a:	22e1      	movs	r2, #225	@ 0xe1
+ 8000c7c:	701a      	strb	r2, [r3, #0]
 	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
- 8000c80:	4b2b      	ldr	r3, [pc, #172]	@ (8000d30 <main+0x2fc>)
- 8000c82:	881b      	ldrh	r3, [r3, #0]
- 8000c84:	9300      	str	r3, [sp, #0]
- 8000c86:	4b2b      	ldr	r3, [pc, #172]	@ (8000d34 <main+0x300>)
- 8000c88:	2201      	movs	r2, #1
- 8000c8a:	492f      	ldr	r1, [pc, #188]	@ (8000d48 <main+0x314>)
- 8000c8c:	2000      	movs	r0, #0
- 8000c8e:	f000 fd17 	bl	80016c0 <sendto_W5x00>
-	  							state = WAIT_SYNC_BYTE;
- 8000c92:	4b25      	ldr	r3, [pc, #148]	@ (8000d28 <main+0x2f4>)
- 8000c94:	2200      	movs	r2, #0
- 8000c96:	701a      	strb	r2, [r3, #0]
+ 8000c7e:	4b2c      	ldr	r3, [pc, #176]	@ (8000d30 <main+0x2fc>)
+ 8000c80:	881b      	ldrh	r3, [r3, #0]
+ 8000c82:	9300      	str	r3, [sp, #0]
+ 8000c84:	4b2b      	ldr	r3, [pc, #172]	@ (8000d34 <main+0x300>)
+ 8000c86:	2201      	movs	r2, #1
+ 8000c88:	492f      	ldr	r1, [pc, #188]	@ (8000d48 <main+0x314>)
+ 8000c8a:	2000      	movs	r0, #0
+ 8000c8c:	f000 fd18 	bl	80016c0 <sendto_W5x00>
+	  							state = STATE_WAIT_SYNC_BYTE;							/* Переход в начало процедуры (ожидание синхробайта) */
+ 8000c90:	4b25      	ldr	r3, [pc, #148]	@ (8000d28 <main+0x2f4>)
+ 8000c92:	2200      	movs	r2, #0
+ 8000c94:	701a      	strb	r2, [r3, #0]
 	  						break;
- 8000c98:	e00f      	b.n	8000cba <main+0x286>
+ 8000c96:	e00f      	b.n	8000cb8 <main+0x284>
 
-	  					default:
+	  					default:														/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
 	  						tx_data[0] = 0xEE;
- 8000c9a:	4b2b      	ldr	r3, [pc, #172]	@ (8000d48 <main+0x314>)
- 8000c9c:	22ee      	movs	r2, #238	@ 0xee
- 8000c9e:	701a      	strb	r2, [r3, #0]
+ 8000c98:	4b2b      	ldr	r3, [pc, #172]	@ (8000d48 <main+0x314>)
+ 8000c9a:	22ee      	movs	r2, #238	@ 0xee
+ 8000c9c:	701a      	strb	r2, [r3, #0]
 	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
- 8000ca0:	4b23      	ldr	r3, [pc, #140]	@ (8000d30 <main+0x2fc>)
- 8000ca2:	881b      	ldrh	r3, [r3, #0]
- 8000ca4:	9300      	str	r3, [sp, #0]
- 8000ca6:	4b23      	ldr	r3, [pc, #140]	@ (8000d34 <main+0x300>)
- 8000ca8:	2201      	movs	r2, #1
- 8000caa:	4927      	ldr	r1, [pc, #156]	@ (8000d48 <main+0x314>)
- 8000cac:	2000      	movs	r0, #0
- 8000cae:	f000 fd07 	bl	80016c0 <sendto_W5x00>
-	  						state = WAIT_SYNC_BYTE;
- 8000cb2:	4b1d      	ldr	r3, [pc, #116]	@ (8000d28 <main+0x2f4>)
- 8000cb4:	2200      	movs	r2, #0
- 8000cb6:	701a      	strb	r2, [r3, #0]
+ 8000c9e:	4b24      	ldr	r3, [pc, #144]	@ (8000d30 <main+0x2fc>)
+ 8000ca0:	881b      	ldrh	r3, [r3, #0]
+ 8000ca2:	9300      	str	r3, [sp, #0]
+ 8000ca4:	4b23      	ldr	r3, [pc, #140]	@ (8000d34 <main+0x300>)
+ 8000ca6:	2201      	movs	r2, #1
+ 8000ca8:	4927      	ldr	r1, [pc, #156]	@ (8000d48 <main+0x314>)
+ 8000caa:	2000      	movs	r0, #0
+ 8000cac:	f000 fd08 	bl	80016c0 <sendto_W5x00>
+	  						state = STATE_WAIT_SYNC_BYTE;								/* Переход в начало процедуры (ожидание синхробайта) */
+ 8000cb0:	4b1d      	ldr	r3, [pc, #116]	@ (8000d28 <main+0x2f4>)
+ 8000cb2:	2200      	movs	r2, #0
+ 8000cb4:	701a      	strb	r2, [r3, #0]
 	  						break;
- 8000cb8:	bf00      	nop
+ 8000cb6:	bf00      	nop
 	  				}
-
-	  				memset(rx_data, 0, sizeof(rx_data));
- 8000cba:	f44f 6285 	mov.w	r2, #1064	@ 0x428
- 8000cbe:	2100      	movs	r1, #0
- 8000cc0:	481d      	ldr	r0, [pc, #116]	@ (8000d38 <main+0x304>)
- 8000cc2:	f004 f81b 	bl	8004cfc <memset>
+	  				memset(rx_data, 0, sizeof(rx_data));								/* Очищаем буфер после обработки принятых данных */
+ 8000cb8:	f44f 6285 	mov.w	r2, #1064	@ 0x428
+ 8000cbc:	2100      	movs	r1, #0
+ 8000cbe:	481e      	ldr	r0, [pc, #120]	@ (8000d38 <main+0x304>)
+ 8000cc0:	f004 f81c 	bl	8004cfc <memset>
 	  			}
 	  		}
 	  		break;
- 8000cc6:	e014      	b.n	8000cf2 <main+0x2be>
+ 8000cc4:	e014      	b.n	8000cf0 <main+0x2bc>
 
-	  	  case END_SESSION:
-	  		  HAL_SPI_DeInit(&hspi2);
- 8000cc8:	4823      	ldr	r0, [pc, #140]	@ (8000d58 <main+0x324>)
- 8000cca:	f003 faa6 	bl	800421a <HAL_SPI_DeInit>
-	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);
- 8000cce:	f44f 5180 	mov.w	r1, #4096	@ 0x1000
- 8000cd2:	4809      	ldr	r0, [pc, #36]	@ (8000cf8 <main+0x2c4>)
- 8000cd4:	f002 fcc6 	bl	8003664 <HAL_GPIO_DeInit>
+	  	  case STATE_END_SESSION:														/* Состояние завершения приёма пакетов */
+	  		  HAL_SPI_DeInit(&hspi2);													/* Деинициализация интерфейса SPI */
+ 8000cc6:	4824      	ldr	r0, [pc, #144]	@ (8000d58 <main+0x324>)
+ 8000cc8:	f003 faa7 	bl	800421a <HAL_SPI_DeInit>
+	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);										/* Деиницализация джампера, вывода сброса и chip select сетевого чипа */
+ 8000ccc:	f44f 5180 	mov.w	r1, #4096	@ 0x1000
+ 8000cd0:	4809      	ldr	r0, [pc, #36]	@ (8000cf8 <main+0x2c4>)
+ 8000cd2:	f002 fcc7 	bl	8003664 <HAL_GPIO_DeInit>
 	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
- 8000cd8:	2102      	movs	r1, #2
- 8000cda:	4807      	ldr	r0, [pc, #28]	@ (8000cf8 <main+0x2c4>)
- 8000cdc:	f002 fcc2 	bl	8003664 <HAL_GPIO_DeInit>
+ 8000cd6:	2102      	movs	r1, #2
+ 8000cd8:	4807      	ldr	r0, [pc, #28]	@ (8000cf8 <main+0x2c4>)
+ 8000cda:	f002 fcc3 	bl	8003664 <HAL_GPIO_DeInit>
 	  		  HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0);
- 8000ce0:	2101      	movs	r1, #1
- 8000ce2:	480e      	ldr	r0, [pc, #56]	@ (8000d1c <main+0x2e8>)
- 8000ce4:	f002 fcbe 	bl	8003664 <HAL_GPIO_DeInit>
-	  		  jump_to_application();
- 8000ce8:	f000 f940 	bl	8000f6c <jump_to_application>
+ 8000cde:	2101      	movs	r1, #1
+ 8000ce0:	480e      	ldr	r0, [pc, #56]	@ (8000d1c <main+0x2e8>)
+ 8000ce2:	f002 fcbf 	bl	8003664 <HAL_GPIO_DeInit>
+	  		  jump_to_application();													/* Переход в основную программу */
+ 8000ce6:	f000 f941 	bl	8000f6c <jump_to_application>
 	  		  break;
- 8000cec:	e003      	b.n	8000cf6 <main+0x2c2>
+ 8000cea:	e003      	b.n	8000cf4 <main+0x2c0>
 	  		  break;
- 8000cee:	bf00      	nop
- 8000cf0:	e6eb      	b.n	8000aca <main+0x96>
+ 8000cec:	bf00      	nop
+ 8000cee:	e6ec      	b.n	8000aca <main+0x96>
 	  		break;
- 8000cf2:	bf00      	nop
- 8000cf4:	e6e9      	b.n	8000aca <main+0x96>
+ 8000cf0:	bf00      	nop
+ 8000cf2:	e6ea      	b.n	8000aca <main+0x96>
 	  switch(state)
- 8000cf6:	e6e8      	b.n	8000aca <main+0x96>
+ 8000cf4:	e6e9      	b.n	8000aca <main+0x96>
+ 8000cf6:	bf00      	nop
  8000cf8:	40020400 	.word	0x40020400
  8000cfc:	08000fed 	.word	0x08000fed
  8000d00:	08000fd5 	.word	0x08000fd5
@@ -1678,7 +1665,7 @@ int main(void)
  8000d1c:	40020c00 	.word	0x40020c00
  8000d20:	20000000 	.word	0x20000000
  8000d24:	20000018 	.word	0x20000018
- 8000d28:	200000e2 	.word	0x200000e2
+ 8000d28:	2000052f 	.word	0x2000052f
  8000d2c:	200000e8 	.word	0x200000e8
  8000d30:	200000e0 	.word	0x200000e0
  8000d34:	200000dc 	.word	0x200000dc

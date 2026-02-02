@@ -68,8 +68,6 @@ uint8_t buffer_size_tx_rx[16] 			= {2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
 uint8_t 	dest_ip[4];
 uint16_t 	dest_port;
 
-uint8_t state;
-
 static uint32_t flash_write_addr 		= APP_FLASH_START;
 static uint32_t total_received 			= 0;
 static uint8_t  expected_ctrl   		= 0;
@@ -90,9 +88,20 @@ typedef enum
     PKT_END_CRC
 } packet_result_t;
 
+typedef enum
+{
+	STATE_WAIT_SYNC_BYTE,
+	STATE_PREPARE_FLASH,
+	STATE_WAIT_DATA_PACKET,
+	STATE_END_SESSION,
+	STATE_ERASE_FLASH
+} state_machine;
+
 uint8_t  		ack						= 0;
 uint16_t 		crc;
 packet_result_t res;
+
+state_machine 	state;
 
 /* USER CODE END PV */
 
@@ -160,7 +169,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_Delay(100);															/* Задержка после инициализации интерфейсов */
   if((HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == GPIO_PIN_SET)) {				/* Проверка на джампер. Если он установлен, переход на основную прошивку запрещён */
-	  jump_to_application();
+	  jump_to_application();												/* Переход к основному приложению */
   }
 
   reg_wizchip_cs_cbfunc(cs_select, cs_deselect);							/* Регистрация функций SPI для сетевого чипа W5500 */
@@ -178,7 +187,7 @@ int main(void)
 
   socket(BOOTLOADER_SOCKET, Sn_MR_UDP, BOOTLOADER_PORT, 0);					/* Открытие сокета */
 
-  state = WAIT_SYNC_BYTE;
+  state = STATE_WAIT_SYNC_BYTE;												/* Переходим в стартовое состояние машины состояний */
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -188,99 +197,84 @@ int main(void)
     /* USER CODE END WHILE */
 	  switch(state)
 	  {
-	  	  case WAIT_SYNC_BYTE:
-	  		  ret_boot = getSn_RX_RSR(0);
-	  		  if(ret_boot > 0)
-	  		  {
-	  			  rx_boot = recvfrom(0, rx_data, 1, dest_ip, &dest_port);
-	  			  if(rx_boot > 0)
-	  			  {
-	  				  first_byte = rx_data[0];
-	  				  if(first_byte == 0xAA)
-	  				  {
-	  					  state = ERASE_FLASH;
+	  	  case STATE_WAIT_SYNC_BYTE:										/* Ожидаем байт синхронизации */
+	  		  ret_boot = getSn_RX_RSR(0);									/* Проверяем сокет на наличие данных */
+	  		  if(ret_boot > 0)	{											/* Если данные имеются */
+	  			  rx_boot = recvfrom(0, rx_data, 1, dest_ip, &dest_port);	/* Начинаем их принимать */
+	  			  if(rx_boot > 0)	{										/* Если количество байт больше 0 (т.е. в сокете что-то есть) */
+	  				  first_byte = rx_data[0];								/* Смотрим принятый от внешнего ПО байт */
+	  				  if(first_byte == 0xAA)	{							/* Если первый принятый байт равен 0xAA */
+	  					  state = STATE_PREPARE_FLASH;						/* В случае успеха переходим к подготовке flash памяти */
+	  				  }	else {
+	  					  state = STATE_WAIT_SYNC_BYTE;						/* В случае неудачи продролжаем ожидать правильный байт */
 	  				  }
-	  				  else
-	  				  {
-	  					  state = WAIT_SYNC_BYTE;
-	  				  }
-	  				  memset(rx_data, 0, sizeof(rx_data));
+	  				  memset(rx_data, 0, sizeof(rx_data));					/* Очищаем буфер после обработки принятых данных */
 	  			  }
 	  		  }
 	  		  break;
 
-	  	  case ERASE_FLASH:
-	  		  erase_result = flash_erase();
-	  		  if(erase_result == true)
-	  		  {
-	  			  tx_data[0] = 0xBB;
+	  	  case STATE_PREPARE_FLASH:											/* Подготавливаем flash память к записи прошивки, т.к. это происходит "на лету" */
+	  		  erase_result = flash_erase();									/* Стираем flash память */
+	  		  if(erase_result == true)	{									/* Если стирание flash пасять прошло успешно */
+	  			  tx_data[0] = 0xBB;										/* Отслыаем во внешнее ПО байт 0xBB - готовность к принятию прошивки */
 	  			  sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  			  state = PARS_PACKET;
-	  		  }
-	  		  else
-	  		  {
-	  			  tx_data[0] = 0xCC;
+	  			  state = STATE_WAIT_DATA_PACKET;							/* Начинаем ожидать посылку с прошивкой */
+	  		  } else {
+	  			  tx_data[0] = 0xCC;										/* В случае ошибки отсылаем байт ошибки - 0xCC */
 	  			  sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  			  state = WAIT_SYNC_BYTE;
+	  			  state = STATE_WAIT_SYNC_BYTE;								/* Переходим в режим ожидания синхробайта */
 	  		  }
-	  		  memset(rx_data, 0, sizeof(rx_data));
+	  		  memset(rx_data, 0, sizeof(rx_data));							/* Очищаем буфер после обработки принятых данных */
 	  		  break;
 
-	  	  case PARS_PACKET:
-	  		ret_boot = getSn_RX_RSR(0);
-	  		if(ret_boot > 0)
-	  		{
-	  			rx_boot = recvfrom(0, rx_data, sizeof(rx_data), dest_ip, &dest_port);
-	  			if(rx_boot > 0)
-	  			{
-	  				res = bootloader_process_packet(rx_data, rx_boot, &ack, &crc);
+	  	  case STATE_WAIT_DATA_PACKET:													/* Ожидаем пакеты с прошивкой */
+	  		ret_boot = getSn_RX_RSR(0);													/* Проверяем сокет на наличие данных */
+	  		if(ret_boot > 0) {															/* Если данные имеются */
+	  			rx_boot = recvfrom(0, rx_data, sizeof(rx_data), dest_ip, &dest_port);	/* Начинаем их принимать */
+	  			if(rx_boot > 0) {														/* Если количество байт больше 0 (т.е. в сокете что-то есть) */
+	  				res = bootloader_process_packet(rx_data, rx_boot, &ack, &crc);		/* Сразу передаём полученные данные в функцию записи flash */
 
-	  				switch(res)
+	  				switch(res)															/* Машина состояний, отслеживающая процесс записи во flash */
 	  				{
-	  					case PKT_OK:
-	  						sendto(0, &ack, 1, &dest_ip, dest_port);
-	  						asm("nop");
+	  					case PKT_OK:													/* Если пакет был записан без ошибок */
+	  						sendto(0, &ack, 1, &dest_ip, dest_port);					/* Отправляем в ПО код готовности принятия следующего пакета */
 	  						break;
 
-	  					case PKT_FLASH_ERROR:
-	  						tx_data[0] = 0xCC;
+	  					case PKT_FLASH_ERROR:											/* Если произошла ошибка записи */
+	  						tx_data[0] = 0xCC;											/* Сообщим об этом внешнему ПО */
 	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  						state = WAIT_SYNC_BYTE;
+	  						state = STATE_WAIT_SYNC_BYTE;								/* Переходим к ожиданию синхробайта (начало приёма и записи прошивки сначала */
 	  						break;
 
-	  					case PKT_END_CRC:
-	  						if(verify_flash_crc(crc))
-	  						{
-	  							tx_data[0] = 0xE2;
+	  					case PKT_END_CRC:												/* Если был принят последний пакет с контрольной суммой */
+	  						if(verify_flash_crc(crc)) {									/* Рассчёт контрольной суммы */
+	  							tx_data[0] = 0xE2;										/* Если она правильная, сообщим об этом внешнему ПО и завершим приём данных */
 	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  							state = END_SESSION;
-	  						}
-	  						else
-	  						{
-	  							tx_data[0] = 0xE1;
+	  							state = STATE_END_SESSION;
+	  						} else {													/* Если контрольная сумма неправильная */
+	  							tx_data[0] = 0xE1;										/* Сообщим об этом внешнему ПО */
 	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  							state = WAIT_SYNC_BYTE;
+	  							state = STATE_WAIT_SYNC_BYTE;							/* Переход в начало процедуры (ожидание синхробайта) */
 	  						}
 	  						break;
 
-	  					default:
+	  					default:														/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
 	  						tx_data[0] = 0xEE;
 	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  						state = WAIT_SYNC_BYTE;
+	  						state = STATE_WAIT_SYNC_BYTE;								/* Переход в начало процедуры (ожидание синхробайта) */
 	  						break;
 	  				}
-
-	  				memset(rx_data, 0, sizeof(rx_data));
+	  				memset(rx_data, 0, sizeof(rx_data));								/* Очищаем буфер после обработки принятых данных */
 	  			}
 	  		}
 	  		break;
 
-	  	  case END_SESSION:
-	  		  HAL_SPI_DeInit(&hspi2);
-	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);
+	  	  case STATE_END_SESSION:														/* Состояние завершения приёма пакетов */
+	  		  HAL_SPI_DeInit(&hspi2);													/* Деинициализация интерфейса SPI */
+	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);										/* Деиницализация джампера, вывода сброса и chip select сетевого чипа */
 	  		  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
 	  		  HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0);
-	  		  jump_to_application();
+	  		  jump_to_application();													/* Переход в основную программу */
 	  		  break;
 	  }
     /* USER CODE BEGIN 3 */
@@ -479,9 +473,8 @@ bool flash_erase(void) {
     erase.TypeErase = FLASH_TYPEERASE_SECTORS;
     erase.VoltageRange = FLASH_VOLTAGE_RANGE_3;
 
-    // первый сектор приложения
-    erase.Sector = FLASH_SECTOR_2;
-    erase.NbSectors = 6; // S2..S7 (под 512 KB)
+    erase.Sector = FLASH_SECTOR_2;					/* Первый сектор основного приложения */
+    erase.NbSectors = 6;
 
     if (HAL_FLASHEx_Erase(&erase, &sector_error) != HAL_OK) {
         HAL_FLASH_Lock();
