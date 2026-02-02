@@ -261,7 +261,7 @@ int main(void)
 	  	  						break;
 
 	  	  					default:														/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
-	  	  						tx_data[0] = 0xEE;
+	  	  						tx_data[0] = 0xE0;
 	  	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
 	  	  						state = STATE_WAIT_SYNC_BYTE;								/* Переход в начало процедуры (ожидание синхробайта) */
 	  	  						break;
