@@ -203,7 +203,9 @@ int main(void)
 	  				  first_byte = rx_data[0];								/* Смотрим принятый от внешнего ПО байт */
 	  				  if(first_byte == 0xAA)	{							/* Если первый принятый байт равен 0xAA */
 	  					  state = STATE_PREPARE_FLASH;						/* В случае успеха переходим к подготовке flash памяти */
-	  				  }	else {
+	  				  }	else if (first_byte == 0xDD) {						/* Если принят байт 0xDD */
+	  					  state = STATE_ERASE_FLASH;						/* Просто стираем flash память */
+	  				  } else {
 	  					  state = STATE_WAIT_SYNC_BYTE;						/* В случае неудачи продролжаем ожидать правильный байт */
 	  				  }
 	  				  memset(rx_data, 0, sizeof(rx_data));					/* Очищаем буфер после обработки принятых данных */
@@ -276,6 +278,17 @@ int main(void)
 	  		  break;
 
 	  	  case STATE_ERASE_FLASH:														/* Состояние стирания flash без записи прошивки */
+	  		  erase_result = flash_erase();												/* Стираем flash память */
+	  		  if(erase_result == true)	{												/* Если стирание flash пасять прошло успешно */
+	  			  tx_data[0] = 0xBB;													/* Отслыаем во внешнее ПО байт 0xBB - готовность к принятию прошивки */
+	  			  sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  			  state = STATE_WAIT_SYNC_BYTE;											/* Переходим в режим ожидания синхробайта */
+	  		  } else {
+	  			  tx_data[0] = 0xCC;													/* В случае ошибки отсылаем байт ошибки - 0xCC */
+	  			  sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  			  state = STATE_WAIT_SYNC_BYTE;											/* Переходим в режим ожидания синхробайта */
+	  		  }
+	  		  memset(rx_data, 0, sizeof(rx_data));										/* Очищаем буфер после обработки принятых данных */
 	  		  break;
 	  }
     /* USER CODE BEGIN 3 */
@@ -518,19 +531,16 @@ bool flash_write_block(uint8_t *data, uint32_t len) {
 packet_result_t bootloader_process_packet(uint8_t *buf, uint32_t len, uint8_t *ack_ctrl, uint16_t *final_crc) {
     uint16_t data_len;
 
-    // Минимальная длина
     if (len < 4)
         return PKT_BAD_FORMAT;
 
-    // CMD
     if (buf[0] != 0x01)
         return PKT_BAD_FORMAT;
 
-    // Контрольный байт — всегда возвращаем ПК
-    *ack_ctrl = buf[1];
+    *ack_ctrl = buf[1];							/* Контрольный байт, полученный от ПК, и который должан быть ему возвращён */
 
     /* ---------- CRC пакет ---------- */
-    if (buf[1] == 0xEE)
+    if (buf[1] == 0xEE)							/* Если был принят код 0xEE, то это значит, что был принят последний файл с контрольной суммой */
     {
         if (len != 4)
             return PKT_BAD_FORMAT;
@@ -548,11 +558,9 @@ packet_result_t bootloader_process_packet(uint8_t *buf, uint32_t len, uint8_t *a
     if (len != (uint32_t)(4 + data_len))
         return PKT_BAD_FORMAT;
 
-    // Данные должны быть кратны 4 байтам
     if (data_len % 4)
         return PKT_BAD_FORMAT;
 
-    // Пишем во Flash
     if (!flash_write_block(&buf[4], data_len))
         return PKT_FLASH_ERROR;
 
@@ -585,7 +593,6 @@ bool verify_flash_crc(uint16_t expected_crc) {
     if (total_received == 0)
         return false;
 
-    // Защита от выхода за пределы Flash
     if (APP_FLASH_START + total_received > FLASH_END)
         return false;
 
