@@ -1605,9 +1605,9 @@ int main(void)
  8000caa:	e00f      	b.n	8000ccc <main+0x298>
 
 	  	  					default:														/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
-	  	  						tx_data[0] = 0xEE;
+	  	  						tx_data[0] = 0xE0;
  8000cac:	4b28      	ldr	r3, [pc, #160]	@ (8000d50 <main+0x31c>)
- 8000cae:	22ee      	movs	r2, #238	@ 0xee
+ 8000cae:	22e0      	movs	r2, #224	@ 0xe0
  8000cb0:	701a      	strb	r2, [r3, #0]
 	  	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
  8000cb2:	4b21      	ldr	r3, [pc, #132]	@ (8000d38 <main+0x304>)
