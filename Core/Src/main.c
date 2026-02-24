@@ -80,10 +80,10 @@ bool	erase_result;
 
 typedef enum
 {
-    PKT_OK,
-    PKT_BAD_FORMAT,
-    PKT_FLASH_ERROR,
-    PKT_END_CRC
+    PACKET_OK,
+    PACKET_BAD_FORMAT,
+    PACKET_FLASH_ERROR,
+    PACKET_END_CRC
 } packet_result_t;
 
 typedef enum
@@ -216,17 +216,11 @@ int main(void)
 	  	  	break;
 
 	  	  case STATE_PREPARE_FLASH:															/* Подготавливаем flash память к записи прошивки, т.к. это происходит "на лету" */
-	  	  	erase_result = flash_erase();													/* Стираем flash память */
-	  	  	if(erase_result == true)	{													/* Если стирание flash пасять прошло успешно */
-	  	  		tx_data[0] = 0xBB;															/* Отслыаем во внешнее ПО байт 0xBB - готовность к принятию прошивки */
-	  	  		sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  		state = STATE_WAIT_DATA_PACKET;												/* Начинаем ожидать посылку с прошивкой */
-	  	  	} else {
-	  	  		tx_data[0] = 0xCC;															/* В случае ошибки отсылаем байт ошибки - 0xCC */
-	  	  		sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  		state = STATE_WAIT_SYNC_BYTE;												/* Переходим в режим ожидания синхробайта */
-	  	  	}
-	  	  	memset(rx_data, 0, sizeof(rx_data));											/* Очищаем буфер после обработки принятых данных */
+	  		erase_result = flash_erase();
+	  		tx_data[0] = erase_result ? 0xBB : 0xCC;
+	  		state = erase_result ? STATE_WAIT_DATA_PACKET : STATE_WAIT_SYNC_BYTE;
+	  		sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  		memset(rx_data, 0, sizeof(rx_data));
 	  	  	break;
 
 	  	  case STATE_WAIT_DATA_PACKET:														/* Ожидаем пакеты с прошивкой */
@@ -238,26 +232,21 @@ int main(void)
 
 	  	  			switch(res)																/* Машина состояний, отслеживающая процесс записи во flash */
 	  	  			{
-	  	  				case PKT_OK:														/* Если пакет был записан без ошибок */
+	  	  				case PACKET_OK:														/* Если пакет был записан без ошибок */
 	  	  					sendto(0, &ack, 1, &dest_ip, dest_port);						/* Отправляем в ПО код готовности принятия следующего пакета */
 	  	  					break;
 
-	  	  					case PKT_FLASH_ERROR:											/* Если произошла ошибка записи */
+	  	  					case PACKET_FLASH_ERROR:											/* Если произошла ошибка записи */
 	  	  						tx_data[0] = 0xCC;											/* Сообщим об этом внешнему ПО */
 	  	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
 	  	  						state = STATE_WAIT_SYNC_BYTE;								/* Переходим к ожиданию синхробайта (начало приёма и записи прошивки сначала */
 	  	  						break;
 
-	  	  					case PKT_END_CRC:												/* Если был принят последний пакет с контрольной суммой */
-	  	  						if(verify_flash_crc(crc)) {									/* Рассчёт контрольной суммы */
-	  	  							tx_data[0] = 0xE2;										/* Если она правильная, сообщим об этом внешнему ПО и завершим приём данных */
-	  	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  							state = STATE_END_SESSION;
-	  	  						} else {													/* Если контрольная сумма неправильная */
-	  	  							tx_data[0] = 0xE1;										/* Сообщим об этом внешнему ПО */
-	  	  							sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  							state = STATE_WAIT_SYNC_BYTE;							/* Переход в начало процедуры (ожидание синхробайта) */
-	  	  						}
+	  	  					case PACKET_END_CRC:												/* Если был принят последний пакет с контрольной суммой */
+	  	  						bool crc_valid = verify_flash_crc(crc);
+	  	  					    tx_data[0] = crc_valid ? 0xE2 : 0xE1;
+	  	  					    state = crc_valid ? STATE_END_SESSION : STATE_WAIT_SYNC_BYTE;
+	  	  					    sendto(0, tx_data, 1, &dest_ip, dest_port);
 	  	  						break;
 
 	  	  					default:														/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
@@ -281,15 +270,9 @@ int main(void)
 
 	  	  case STATE_ERASE_FLASH:															/* Состояние стирания flash без записи прошивки */
 	  	  	erase_result = flash_erase();													/* Стираем flash память */
-	  	  	if(erase_result == true)	{													/* Если стирание flash пасять прошло успешно */
-	  	  		tx_data[0] = 0xBB;															/* Отслыаем во внешнее ПО байт 0xBB - готовность к принятию прошивки */
-	  	  		sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  		state = STATE_WAIT_SYNC_BYTE;												/* Переходим в режим ожидания синхробайта */
-	  	  	} else {
-	  	  		tx_data[0] = 0xCC;															/* В случае ошибки отсылаем байт ошибки - 0xCC */
-	  	  		sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  		state = STATE_WAIT_SYNC_BYTE;												/* Переходим в режим ожидания синхробайта */
-	  	  	}
+	  	  	tx_data[0] = erase_result ? 0xBB : 0xCC;
+	  	  	state = STATE_WAIT_SYNC_BYTE;
+	  	  	sendto(0, tx_data, 1, &dest_ip, dest_port);
 	  	  	memset(rx_data, 0, sizeof(rx_data));											/* Очищаем буфер после обработки принятых данных */
 	  	  	break;
 	  }
@@ -533,10 +516,10 @@ packet_result_t bootloader_process_packet(uint8_t *buf, uint32_t len, uint8_t *a
     uint16_t data_len;
 
     if (len < 4)
-        return PKT_BAD_FORMAT;
+        return PACKET_BAD_FORMAT;
 
     if (buf[0] != 0x01)
-        return PKT_BAD_FORMAT;
+        return PACKET_BAD_FORMAT;
 
     *ack_ctrl = buf[1];							/* Контрольный байт, полученный от ПК, и который должан быть ему возвращён */
 
@@ -544,28 +527,28 @@ packet_result_t bootloader_process_packet(uint8_t *buf, uint32_t len, uint8_t *a
     if (buf[1] == 0xEE)							/* Если был принят код 0xEE, то это значит, что был принят последний файл с контрольной суммой */
     {
         if (len != 4)
-            return PKT_BAD_FORMAT;
+            return PACKET_BAD_FORMAT;
 
         *final_crc = (buf[2] << 8) | buf[3];
-        return PKT_END_CRC;
+        return PACKET_END_CRC;
     }
 
     /* ---------- DATA пакет ---------- */
     data_len = (buf[2] << 8) | buf[3];
 
     if (data_len == 0 || data_len > 1024)
-        return PKT_BAD_FORMAT;
+        return PACKET_BAD_FORMAT;
 
     if (len != (uint32_t)(4 + data_len))
-        return PKT_BAD_FORMAT;
+        return PACKET_BAD_FORMAT;
 
     if (data_len % 4)
-        return PKT_BAD_FORMAT;
+        return PACKET_BAD_FORMAT;
 
     if (!flash_write_block(&buf[4], data_len))
-        return PKT_FLASH_ERROR;
+        return PACKET_FLASH_ERROR;
 
-    return PKT_OK;
+    return PACKET_OK;
 }
 
 uint16_t crc16(const uint8_t *data, uint32_t len) {
