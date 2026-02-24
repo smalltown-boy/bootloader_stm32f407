@@ -83,7 +83,8 @@ typedef enum
     PACKET_OK,
     PACKET_BAD_FORMAT,
     PACKET_FLASH_ERROR,
-    PACKET_END_CRC
+    PACKET_END_CRC,
+	PACKET_END_CRC_WITH_JUMP
 } packet_result_t;
 
 typedef enum
@@ -92,12 +93,13 @@ typedef enum
 	STATE_PREPARE_FLASH,
 	STATE_WAIT_DATA_PACKET,
 	STATE_END_SESSION,
-	STATE_ERASE_FLASH
+	STATE_ERASE_FLASH,
+	STATE_END_SESSION_WITH_JUMP,
 } state_machine_t;
 
 uint8_t  		ack						= 0;
-uint16_t 		crc;
-packet_result_t res;
+uint16_t 		crc						= 0;
+packet_result_t res						= 0;
 
 state_machine_t state;
 
@@ -213,7 +215,7 @@ int main(void)
 	  	  			memset(rx_data, 0, sizeof(rx_data));									/* Очищаем буфер после обработки принятых данных */
 	  	  		}
 	  	  	}
-	  	  	break;
+	  	  break;
 
 	  	  case STATE_PREPARE_FLASH:															/* Подготавливаем flash память к записи прошивки, т.к. это происходит "на лету" */
 	  		erase_result = flash_erase();
@@ -221,7 +223,7 @@ int main(void)
 	  		state = erase_result ? STATE_WAIT_DATA_PACKET : STATE_WAIT_SYNC_BYTE;
 	  		sendto(0, tx_data, 1, &dest_ip, dest_port);
 	  		memset(rx_data, 0, sizeof(rx_data));
-	  	  	break;
+	  	  break;
 
 	  	  case STATE_WAIT_DATA_PACKET:														/* Ожидаем пакеты с прошивкой */
 	  		ret_boot = getSn_RX_RSR(0);														/* Проверяем сокет на наличие данных */
@@ -234,39 +236,54 @@ int main(void)
 	  	  			{
 	  	  				case PACKET_OK:														/* Если пакет был записан без ошибок */
 	  	  					sendto(0, &ack, 1, &dest_ip, dest_port);						/* Отправляем в ПО код готовности принятия следующего пакета */
-	  	  					break;
+	  	  				break;
 
-	  	  					case PACKET_FLASH_ERROR:											/* Если произошла ошибка записи */
-	  	  						tx_data[0] = 0xCC;											/* Сообщим об этом внешнему ПО */
-	  	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  						state = STATE_WAIT_SYNC_BYTE;								/* Переходим к ожиданию синхробайта (начало приёма и записи прошивки сначала */
-	  	  						break;
+	  	  				case PACKET_FLASH_ERROR:											/* Если произошла ошибка записи */
+	  	  					tx_data[0] = 0xCC;												/* Сообщим об этом внешнему ПО */
+	  	  					sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  	  					state = STATE_WAIT_SYNC_BYTE;									/* Переходим к ожиданию синхробайта (начало приёма и записи прошивки сначала */
+	  	  				break;
 
-	  	  					case PACKET_END_CRC:												/* Если был принят последний пакет с контрольной суммой */
-	  	  						bool crc_valid = verify_flash_crc(crc);
-	  	  					    tx_data[0] = crc_valid ? 0xE2 : 0xE1;
-	  	  					    state = crc_valid ? STATE_END_SESSION : STATE_WAIT_SYNC_BYTE;
-	  	  					    sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  						break;
+	  	  				case PACKET_END_CRC:												/* Если был принят последний пакет с контрольной суммой */
+	  	  					erase_result = verify_flash_crc(crc);
+	  	  					tx_data[0] = erase_result ? 0xE2 : 0xE1;
+	  	  					state = erase_result ? STATE_END_SESSION : STATE_WAIT_SYNC_BYTE;
+	  	  					sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  	  				break;
 
-	  	  					default:														/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
-	  	  						tx_data[0] = 0xE0;
-	  	  						sendto(0, tx_data, 1, &dest_ip, dest_port);
-	  	  						state = STATE_WAIT_SYNC_BYTE;								/* Переход в начало процедуры (ожидание синхробайта) */
-	  	  						break;
-	  	  				}
-	  	  				memset(rx_data, 0, sizeof(rx_data));								/* Очищаем буфер после обработки принятых данных */
+	  	  				case PACKET_END_CRC_WITH_JUMP:
+	  	  					erase_result = verify_flash_crc(crc);
+	  	  					tx_data[0] = erase_result ? 0xE2 : 0xE1;
+	  	  					state = erase_result ? STATE_END_SESSION_WITH_JUMP : STATE_WAIT_SYNC_BYTE;
+	  	  					sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  	  				break;
+
+	  	  				default:															/* При неизвестной ошибке отправим во внешнее ПО код 0xEE */
+	  	  					tx_data[0] = 0xE0;
+	  	  					sendto(0, tx_data, 1, &dest_ip, dest_port);
+	  	  					state = STATE_WAIT_SYNC_BYTE;									/* Переход в начало процедуры (ожидание синхробайта) */
+	  	  				break;
 	  	  			}
+	  	  			memset(rx_data, 0, sizeof(rx_data));									/* Очищаем буфер после обработки принятых данных */
 	  	  		}
-	  	  		break;
+	  	  	}
+	  	  break;
 
 	  	  case STATE_END_SESSION:															/* Состояние завершения приёма пакетов */
 	  	  	HAL_SPI_DeInit(&hspi2);															/* Деинициализация интерфейса SPI */
 	  	  	HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);											/* Деиницализация джампера, вывода сброса и chip select сетевого чипа */
 	  	  	HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
 	  	  	HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0);
-	  	  	jump_to_application();															/* Переход в основную программу */
-	  	  	break;
+	  	  	state = STATE_WAIT_SYNC_BYTE;
+	  	  break;
+
+	  	  case STATE_END_SESSION_WITH_JUMP:
+	  		HAL_SPI_DeInit(&hspi2);
+	  		HAL_GPIO_DeInit(GPIOB, GPIO_PIN_12);
+	  		HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1);
+	  		HAL_GPIO_DeInit(GPIOD, GPIO_PIN_0);
+	  		jump_to_application();															/* Переход в основную программу */
+	  	  break;
 
 	  	  case STATE_ERASE_FLASH:															/* Состояние стирания flash без записи прошивки */
 	  	  	erase_result = flash_erase();													/* Стираем flash память */
@@ -274,7 +291,7 @@ int main(void)
 	  	  	state = STATE_WAIT_SYNC_BYTE;
 	  	  	sendto(0, tx_data, 1, &dest_ip, dest_port);
 	  	  	memset(rx_data, 0, sizeof(rx_data));											/* Очищаем буфер после обработки принятых данных */
-	  	  	break;
+	  	  break;
 	  }
   }
   /* USER CODE END 3 */
@@ -487,12 +504,12 @@ bool flash_write_block(uint8_t *data, uint32_t len) {
     uint32_t i;
     uint32_t word;
 
-    if ((len % 4) != 0)
+    if((len % 4) != 0)
         return false;
 
     HAL_FLASH_Unlock();
 
-    for (i = 0; i < len; i += 4) {
+    for(i = 0; i < len; i += 4) {
         word =
             (data[i + 0] << 0)  |
             (data[i + 1] << 8)  |
@@ -524,28 +541,37 @@ packet_result_t bootloader_process_packet(uint8_t *buf, uint32_t len, uint8_t *a
     *ack_ctrl = buf[1];							/* Контрольный байт, полученный от ПК, и который должан быть ему возвращён */
 
     /* ---------- CRC пакет ---------- */
-    if (buf[1] == 0xEE)							/* Если был принят код 0xEE, то это значит, что был принят последний файл с контрольной суммой */
+    if(buf[1] == 0xEE)							/* Если был принят код 0xEE, то это значит, что был принят последний файл с контрольной суммой */
     {
-        if (len != 4)
+        if(len != 4)
             return PACKET_BAD_FORMAT;
 
         *final_crc = (buf[2] << 8) | buf[3];
         return PACKET_END_CRC;
     }
 
+    if(buf[1] == 0xEF)
+    {
+    	if(len != 4)
+    		return PACKET_BAD_FORMAT;
+
+    	*final_crc = (buf[2] << 8) | buf[3];
+    	return PACKET_END_CRC_WITH_JUMP;
+    }
+
     /* ---------- DATA пакет ---------- */
     data_len = (buf[2] << 8) | buf[3];
 
-    if (data_len == 0 || data_len > 1024)
+    if(data_len == 0 || data_len > 1024)
         return PACKET_BAD_FORMAT;
 
-    if (len != (uint32_t)(4 + data_len))
+    if(len != (uint32_t)(4 + data_len))
         return PACKET_BAD_FORMAT;
 
-    if (data_len % 4)
+    if(data_len % 4)
         return PACKET_BAD_FORMAT;
 
-    if (!flash_write_block(&buf[4], data_len))
+    if(!flash_write_block(&buf[4], data_len))
         return PACKET_FLASH_ERROR;
 
     return PACKET_OK;
@@ -555,11 +581,11 @@ uint16_t crc16(const uint8_t *data, uint32_t len) {
     uint16_t crc = 0xFFFF;
     uint8_t  bit;
 
-    while (len--)
+    while(len--)
     {
         crc ^= (*data++) << 8;
 
-        for (bit = 0; bit < 8; bit++) {
+        for(bit = 0; bit < 8; bit++) {
             if (crc & 0x8000)
                 crc = (crc << 1) ^ 0x1021;
             else
@@ -574,10 +600,10 @@ bool verify_flash_crc(uint16_t expected_crc) {
     uint8_t  *flash_ptr;
     uint16_t calc_crc;
 
-    if (total_received == 0)
+    if(total_received == 0)
         return false;
 
-    if (APP_FLASH_START + total_received > FLASH_END)
+    if(APP_FLASH_START + total_received > FLASH_END)
         return false;
 
     flash_ptr = (uint8_t *)APP_FLASH_START;
